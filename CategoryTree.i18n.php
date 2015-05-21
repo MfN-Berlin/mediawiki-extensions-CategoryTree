@@ -1133,7 +1133,7 @@ $messages['da'] = array(
  */
 $messages['de'] = array(
 	'categorytree' => 'Kategorienbaum',
-	'categorytree-portlet' => 'Kategorien',
+	'categorytree-portlet' => 'Inhaltsverzeichnis',
 	'categorytree-legend' => 'Zeige Kategorienbaum',
 	'categorytree-desc' => 'Ergänzt eine [[Special:CategoryTree|Spezialseite]], welche die dynamische Navigation durch die Kategoriestruktur ermöglicht',
 	'categorytree-header' => 'Zeigt für die angegebene Kategorie die Unterkategorien in einer Baumstruktur.
