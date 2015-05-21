@@ -5,19 +5,19 @@ class CategoryTreeCategoryPage extends CategoryPage {
 }
 
 class CategoryTreeCategoryViewer extends CategoryViewer {
-	public $child_cats;
+	var $child_cats;
 
 	/**
 	 * @var CategoryTree
 	 */
-	public $categorytree;
+	var $categorytree;
 
 	/**
 	 * @return CategoryTree
 	 */
 	function getCategoryTree() {
 		global $wgOut, $wgCategoryTreeCategoryPageOptions, $wgCategoryTreeForceHeaders;
-
+		
 		if ( !isset( $this->categorytree ) ) {
 			if ( !$wgCategoryTreeForceHeaders ) {
 				CategoryTree::setHeaders( $wgOut );

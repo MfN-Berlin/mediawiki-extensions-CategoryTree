@@ -5,6 +5,11 @@ Also interesting: https://github.com/kbooz/CategoryTreeMod
 
 Do not "create pull requests", as this was forked from a GitHub mirror. The real thing is at: https://gerrit.wikimedia.org
 
+INSTALL
+
+$wgUseAjax = true;
+require_once( "{{path}}/CategoryTree.php" );
+
 --------------------------------------------------------------------------
 README for the CategoryTree extension
 Copyright © 2006-2008 Daniel Kinzler and others

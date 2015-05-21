@@ -16,12 +16,8 @@ if ( !defined( 'MEDIAWIKI' ) ) {
 }
 
 class CategoryTreePage extends SpecialPage {
-	public $target = '';
-
-	/**
-	 * @var CategoryTree
-	 */
-	public $tree = null;
+	var $target = '';
+	var $tree = null;
 
 	function __construct() {
 		parent::__construct( 'CategoryTree', '', true );
@@ -47,7 +43,7 @@ class CategoryTreePage extends SpecialPage {
 	 */
 	function execute( $par ) {
 		global $wgCategoryTreeDefaultOptions, $wgCategoryTreeSpecialPageOptions, $wgCategoryTreeForceHeaders;
-
+		
 		$this->setHeaders();
 		$request = $this->getRequest();
 		if ( $par ) {
@@ -77,6 +73,7 @@ class CategoryTreePage extends SpecialPage {
 		$this->tree = new CategoryTree( $options );
 
 		$output = $this->getOutput();
+				
 		$output->addWikiMsg( 'categorytree-header' );
 
 		$this->executeInputForm();

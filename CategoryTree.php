@@ -38,8 +38,9 @@ define( 'CT_HIDEPREFIX_AUTO', 30 );
  *
  * $wgCategoryTreeMaxChildren - maximum number of children shown in a tree node. Default is 200
  * $wgCategoryTreeAllowTag - enable <categorytree> tag. Default is true.
- * $wgCategoryTreeDisableCache - disable the parser cache for pages with a <categorytree> tag or provide
- *	                         max cache time in seconds. Default is 6 hours.
+ * $wgCategoryTreeDynamicTag - loads the first level of the tree in a <categorytag> dynamically.
+ *                             This way, the cache does not need to be disabled. Default is false.
+ * $wgCategoryTreeDisableCache - disabled the parser cache for pages with a <categorytree> tag. Default is true.
  * $wgCategoryTreeUseCache - enable HTTP cache for anon users. Default is false.
  * $wgCategoryTreeMaxDepth - maximum value for depth argument; An array that maps mode values to
  *                           the maximum depth acceptable for the depth option.
@@ -52,7 +53,8 @@ define( 'CT_HIDEPREFIX_AUTO', 30 );
 
 $wgCategoryTreeMaxChildren = 200;
 $wgCategoryTreeAllowTag = true;
-$wgCategoryTreeDisableCache = 6*60*60;
+$wgCategoryTreeDisableCache = true;
+$wgCategoryTreeDynamicTag = false;
 $wgCategoryTreeHTTPCache = false;
 # $wgCategoryTreeUnifiedView = true;
 $wgCategoryTreeMaxDepth = array( CT_MODE_PAGES => 1, CT_MODE_ALL => 1, CT_MODE_CATEGORIES => 2 );
@@ -97,12 +99,12 @@ $wgCategoryTreePageCategoryOptions['namespaces'] = false;
 $wgCategoryTreePageCategoryOptions['depth'] = 0;
 # $wgCategoryTreePageCategoryOptions['class'] = 'CategoryTreeInlineNode';
 
-$wgExtensionMessagesFiles['CategoryTreeAlias'] = __DIR__ . '/CategoryTree.alias.php';
+$wgExtensionMessagesFiles['CategoryTreeAlias'] = dirname( __FILE__ ) . '/CategoryTree.alias.php';
 
 /**
  * Register extension setup hook and credits
  */
-$wgExtensionFunctions[] = 'efCategoryTree';
+$wgExtensionFunctions[] = 'efCategoryTreePatched';
 $wgExtensionCredits['specialpage'][] = $wgExtensionCredits['parserhook'][] = array(
 	'path' => __FILE__,
 	'name' => 'CategoryTree',
@@ -114,28 +116,31 @@ $wgExtensionCredits['specialpage'][] = $wgExtensionCredits['parserhook'][] = arr
 /**
  * Register the special page
  */
-$wgMessagesDirs['CategoryTree'] = __DIR__ . '/i18n';
-$wgExtensionMessagesFiles['CategoryTree'] = __DIR__ . '/CategoryTree.i18n.php';
-$wgExtensionMessagesFiles['CategoryTreeMagic'] = __DIR__ . '/CategoryTree.i18n.magic.php';
-$wgAutoloadClasses['CategoryTreePage'] = __DIR__ . '/CategoryTreePage.php';
-$wgAutoloadClasses['CategoryTree'] = __DIR__ . '/CategoryTreeFunctions.php';
-$wgAutoloadClasses['CategoryTreeCategoryPage'] = __DIR__ . '/CategoryPageSubclass.php';
-$wgAutoloadClasses['CategoryTreeCategoryViewer'] = __DIR__ . '/CategoryPageSubclass.php';
+$dir = dirname( __FILE__ ) . '/';
+
+if ( $wgUseAjax && $wgCategoryTreeAllowTag ) {
+	$wgExtensionMessagesFiles['CategoryTreeMagic'] = $dir . 'CategoryTree.i18n.magic.php';
+}
+
+$wgExtensionMessagesFiles['CategoryTree'] = $dir . 'CategoryTree.i18n.php';
+$wgAutoloadClasses['CategoryTreePage'] = $dir . 'CategoryTreePage.php';
+$wgAutoloadClasses['CategoryTree'] = $dir . 'CategoryTreeFunctions.php';
+$wgAutoloadClasses['CategoryTreeCategoryPage'] = $dir . 'CategoryPageSubclass.php';
 $wgSpecialPages['CategoryTree'] = 'CategoryTreePage';
 $wgSpecialPageGroups['CategoryTree'] = 'pages';
 # $wgHooks['SkinTemplateTabs'][] = 'efCategoryTreeInstallTabs';
-$wgHooks['ArticleFromTitle'][] = 'efCategoryTreeArticleFromTitle';
+$wgHooks['ArticleFromTitle'][] = 'efCategoryTreeArticleFromTitlePatched';
 
 /**
  * register Ajax function
  */
-$wgAjaxExportList[] = 'efCategoryTreeAjaxWrapper';
+$wgAjaxExportList[] = 'efCategoryTreeAjaxWrapperPatched';
 
 /**
  * Register ResourceLoader modules
  */
 $commonModuleInfo = array(
-	'localBasePath' => __DIR__ . '/modules',
+	'localBasePath' => dirname( __FILE__ ) . '/modules',
 	'remoteExtPath' => 'CategoryTree/modules',
 );
 
@@ -158,19 +163,18 @@ $wgResourceModules['ext.categoryTree'] = array(
 ) + $commonModuleInfo;
 
 $wgResourceModules['ext.categoryTree.css'] = array(
-	'position' => 'top',
 	'styles' => 'ext.categoryTree.css',
 ) + $commonModuleInfo;
 
 /**
  * Hook it up
  */
-function efCategoryTree() {
-	global $wgUseAjax, $wgHooks, $wgRequest;
+function efCategoryTreePatched() {
+	global $wgUseAjax, $wgHooks, $wgOut, $wgRequest;
 	global $wgCategoryTreeDefaultOptions, $wgCategoryTreeDefaultMode, $wgCategoryTreeOmitNamespace;
 	global $wgCategoryTreeCategoryPageOptions, $wgCategoryTreeCategoryPageMode, $wgCategoryTreeAllowTag;
 	global $wgCategoryTreeSidebarRoot, $wgCategoryTreeForceHeaders, $wgCategoryTreeHijackPageCategories;
-
+	
 	# Abort if AJAX is not enabled
 	if ( !$wgUseAjax ) {
 		wfDebug( 'efCategoryTree: $wgUseAjax is not enabled, aborting extension setup.' );
@@ -179,17 +183,17 @@ function efCategoryTree() {
 
 	if ( $wgCategoryTreeSidebarRoot ) {
 		$wgCategoryTreeForceHeaders = true; # needed on every page anyway
-		$wgHooks['SkinTemplateOutputPageBeforeExec'][] = 'efCategoryTreeSkinTemplateOutputPageBeforeExec';
+		$wgHooks['SkinTemplateOutputPageBeforeExec'][] = 'efCategoryTreeSkinTemplateOutputPageBeforeExecPatched';
 	}
 
 	if ( $wgCategoryTreeHijackPageCategories ) {
 		$wgCategoryTreeForceHeaders = true; # needed on almost every page anyway
-		$wgHooks['OutputPageMakeCategoryLinks'][] = 'efCategoryTreeOutputPageMakeCategoryLinks';
-		$wgHooks['SkinJoinCategoryLinks'][] = 'efCategoryTreeSkinJoinCategoryLinks';
+		$wgHooks['OutputPageMakeCategoryLinks'][] = 'efCategoryTreeOutputPageMakeCategoryLinksPatched';
+		$wgHooks['SkinJoinCategoryLinks'][] = 'efCategoryTreeSkinJoinCategoryLinksPatched';
 	}
 
 	if ( $wgCategoryTreeAllowTag ) {
-		$wgHooks['ParserFirstCallInit'][] = 'efCategoryTreeSetHooks';
+		$wgHooks['ParserFirstCallInit'][] = 'efCategoryTreeSetHooksPatched';
 	}
 
 	if ( !isset( $wgCategoryTreeDefaultOptions['mode'] ) || is_null( $wgCategoryTreeDefaultOptions['mode'] ) ) {
@@ -200,26 +204,26 @@ function efCategoryTree() {
 		$wgCategoryTreeDefaultOptions['hideprefix'] = $wgCategoryTreeOmitNamespace;
 	}
 
-	if ( !isset( $wgCategoryTreeCategoryPageOptions['mode'] ) || is_null( $wgCategoryTreeCategoryPageOptions['mode'] ) ) {
+	if ( !isset( $wgCategoryTreeCategoryPageOptions['mode'] ) || is_null( $wgCategoryTreeCategoryPageOptions['mode'] ) ) {	
 		$wgCategoryTreeCategoryPageOptions['mode'] = ( $mode = $wgRequest->getVal( 'mode' ) ) ? CategoryTree::decodeMode( $mode ) : $wgCategoryTreeCategoryPageMode;
 	}
 
 	if ( $wgCategoryTreeForceHeaders ) {
-		$wgHooks['BeforePageDisplay'][] = 'efCategoryTreeAddHeaders';
+		CategoryTree::setHeaders( $wgOut );
 	} else {
-		$wgHooks['OutputPageParserOutput'][] = 'efCategoryTreeParserOutput';
+		$wgHooks['OutputPageParserOutput'][] = 'efCategoryTreeParserOutputPatched';
 	}
 
-	$wgHooks['MakeGlobalVariablesScript'][] = 'efCategoryTreeGetConfigVars';
+	$wgHooks['MakeGlobalVariablesScript'][] = 'efCategoryTreeGetConfigVarsPatched';
 }
 
 /**
  * @param $parser Parser
  * @return bool
  */
-function efCategoryTreeSetHooks( $parser ) {
+function efCategoryTreeSetHooksPatched( $parser ) {
 	$parser->setHook( 'categorytree' , 'efCategoryTreeParserHook' );
-	$parser->setFunctionHook( 'categorytree' , 'efCategoryTreeParserFunction' );
+	$parser->setFunctionHook( 'categorytree' , 'efCategoryTreeParserFunctionPatched' );
 	return true;
 }
 
@@ -234,9 +238,9 @@ function efCategoryTreeSetHooks( $parser ) {
  * @param $enc string
  * @return AjaxResponse|bool
  */
-function efCategoryTreeAjaxWrapper( $category, $options = array(), $enc = '' ) {
+function efCategoryTreeAjaxWrapperPatched( $category, $options = array(), $enc = '' ) {
 	global $wgCategoryTreeHTTPCache, $wgSquidMaxage, $wgUseSquid;
-
+	
 	if ( is_string( $options ) ) {
 		$options = CategoryTree::decodeOptions( $options, $enc );
 	}
@@ -262,7 +266,7 @@ function efCategoryTreeAjaxWrapper( $category, $options = array(), $enc = '' ) {
  * @param $depth
  * @return int|mixed
  */
-function efCategoryTreeCapDepth( $mode, $depth ) {
+function efCategoryTreeCapDepthPatched( $mode, $depth ) {
 	global $wgCategoryTreeMaxDepth;
 
 	if ( is_numeric( $depth ) ) {
@@ -289,7 +293,7 @@ function efCategoryTreeCapDepth( $mode, $depth ) {
  * @param $parser Parser
  * @return array|string
  */
-function efCategoryTreeParserFunction( $parser ) {
+function efCategoryTreeParserFunctionPatched( $parser ) {
 	$params = func_get_args();
 	array_shift( $params ); // first is $parser, strip it
 
@@ -314,7 +318,7 @@ function efCategoryTreeParserFunction( $parser ) {
 	}
 
 	// now handle just like a <categorytree> tag
-	$html = efCategoryTreeParserHook( $cat, $argv, $parser );
+	$html = efCategoryTreeParserHookPatched( $cat, $argv, $parser );
 	return array( $html, 'noparse' => true, 'isHTML' => true );
 }
 
@@ -325,10 +329,10 @@ function efCategoryTreeParserFunction( $parser ) {
  * @param $tpl SkinTemplate
  * @return bool
  */
-function efCategoryTreeSkinTemplateOutputPageBeforeExec( $skin, $tpl ) {
+function efCategoryTreeSkinTemplateOutputPageBeforeExecPatched( $skin, $tpl ) {
 	global $wgCategoryTreeSidebarRoot, $wgCategoryTreeSidebarOptions;
 
-	$html = efCategoryTreeParserHook( $wgCategoryTreeSidebarRoot, $wgCategoryTreeSidebarOptions );
+	$html = efCategoryTreeParserHookPatched( $wgCategoryTreeSidebarRoot, $wgCategoryTreeSidebarOptions );
 	if ( $html ) {
 		$tpl->data['sidebar']['categorytree-portlet'] = $html;
 	}
@@ -345,7 +349,7 @@ function efCategoryTreeSkinTemplateOutputPageBeforeExec( $skin, $tpl ) {
  * @param $allowMissing bool
  * @return bool|string
  */
-function efCategoryTreeParserHook( $cat, $argv, $parser = null, $allowMissing = false ) {
+function efCategoryTreeParserHookPatched( $cat, $argv, $parser = null, $allowMissing = false ) {
 	global $wgOut;
 
 	if ( $parser ) {
@@ -362,7 +366,7 @@ function efCategoryTreeParserHook( $cat, $argv, $parser = null, $allowMissing = 
 	$onlyroot = isset( $argv[ 'onlyroot' ] ) ? CategoryTree::decodeBoolean( $argv[ 'onlyroot' ] ) : null;
 	$depthArg = isset( $argv[ 'depth' ] ) ? (int)$argv[ 'depth' ] : null;
 
-	$depth = efCategoryTreeCapDepth( $ct->getOption( 'mode' ), $depthArg );
+	$depth = efCategoryTreeCapDepthPatched( $ct->getOption( 'mode' ), $depthArg );
 	if ( $onlyroot ) {
 		$depth = 0;
 	}
@@ -371,30 +375,16 @@ function efCategoryTreeParserHook( $cat, $argv, $parser = null, $allowMissing = 
 }
 
 /**
- * Hook callback that injects messages and things into the <head> tag,
- * if needed in the current page.
+ * Hook callback that injects messages and things into the <head> tag
  * Does nothing if $parserOutput->mCategoryTreeTag is not set
  * @param $outputPage OutputPage
  * @param $parserOutput ParserOutput
  * @return bool
  */
-function efCategoryTreeParserOutput( $outputPage, $parserOutput )  {
+function efCategoryTreeParserOutputPatched( $outputPage, $parserOutput )  {
 	if ( !empty( $parserOutput->mCategoryTreeTag ) ) {
 		CategoryTree::setHeaders( $outputPage );
 	}
-	return true;
-}
-
-/**
- * BeforePageDisplay hook. This hook is set when $wgCategoryTreeForceHeaders
- * is set.
- * Otherwise similar to efCategoryTreeParserOutput.
- * @param $out OutputPage
- * @param $skin Skin
- * @return bool
- */
-function efCategoryTreeAddHeaders( OutputPage $out, Skin $skin )  {
-	CategoryTree::setHeaders( $out );
 	return true;
 }
 
@@ -405,7 +395,7 @@ function efCategoryTreeAddHeaders( OutputPage $out, Skin $skin )  {
  * @param $article Article
  * @return bool
  */
-function efCategoryTreeArticleFromTitle( $title, &$article ) {
+function efCategoryTreeArticleFromTitlePatched( $title, &$article ) {
 	if ( $title->getNamespace() == NS_CATEGORY ) {
 		$article = new CategoryTreeCategoryPage( $title );
 	}
@@ -419,11 +409,11 @@ function efCategoryTreeArticleFromTitle( $title, &$article ) {
  * @param $links
  * @return bool
  */
-function efCategoryTreeOutputPageMakeCategoryLinks( $out, &$categories, &$links ) {
+function efCategoryTreeOutputPageMakeCategoryLinksPatched( $out, &$categories, &$links ) {
 	global $wgCategoryTreePageCategoryOptions;
 
 	foreach ( $categories as $category => $type ) {
-		$links[$type][] = efCategoryTreeParserHook( $category, $wgCategoryTreePageCategoryOptions, null, true );
+		$links[$type][] = efCategoryTreeParserHookPatched( $category, $wgCategoryTreePageCategoryOptions, null, true );
 	}
 
 	return false;
@@ -435,7 +425,7 @@ function efCategoryTreeOutputPageMakeCategoryLinks( $out, &$categories, &$links 
  * @param $result
  * @return bool
  */
-function efCategoryTreeSkinJoinCategoryLinks( $skin, &$links, &$result ) {
+function efCategoryTreeSkinJoinCategoryLinksPatched( $skin, &$links, &$result ) {
 	$embed = '<div class="CategoryTreeCategoryBarItem">';
 	$pop = '</div>';
 	$sep = ' ';
@@ -449,7 +439,7 @@ function efCategoryTreeSkinJoinCategoryLinks( $skin, &$links, &$result ) {
  * @param $vars
  * @return bool
  */
-function efCategoryTreeGetConfigVars( &$vars ) {
+function efCategoryTreeGetConfigVarsPatched( &$vars ) {
 	global $wgCategoryTreeCategoryPageOptions;
 
 	// Look this is pretty bad but Category tree is just whacky, it needs to be rewritten
