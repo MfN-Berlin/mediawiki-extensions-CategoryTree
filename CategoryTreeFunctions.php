@@ -491,11 +491,12 @@ class CategoryTree {
 			'cl_from' );
 		$where = array();
 		$joins = array();
+		
+		$options = array( 'ORDER BY' => 'cl_type, cl_sortkey', 'LIMIT' => $wgCategoryTreeMaxChildren );		
 // AOT: WYSIWYG CKEditor handles category links as links and adds an alternative text after a pipe, which is interpreted as 
 // alternative sort order by the mediawiki sort function. So sort by page name. 
 // Problem: pages with alternative sort oder are sorted by page name as well.
-		//$options = array( 'ORDER BY' => 'cl_type, cl_sortkey', 'LIMIT' => $wgCategoryTreeMaxChildren );		
-		$options = array( 'ORDER BY' => 'page_title', 'LIMIT' => $wgCategoryTreeMaxChildren );
+//		$options = array( 'ORDER BY' => 'page_title', 'LIMIT' => $wgCategoryTreeMaxChildren );
 		if ( $inverse ) {
 			$joins['categorylinks'] = array( 'RIGHT JOIN', array( 'cl_to = page_title', 'page_namespace' => NS_CATEGORY ) );
 			$where['cl_from'] = $title->getArticleID();
